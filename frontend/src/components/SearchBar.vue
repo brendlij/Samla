@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, computed } from "vue";
+import { useI18n } from "../i18n";
 
 const props = defineProps<{
   modelValue: string;
@@ -14,14 +15,26 @@ const emit = defineEmits<{
   "new-set": [];
 }>();
 
+const { t, locale } = useI18n();
 const inputRef = ref<HTMLInputElement | null>(null);
 
-const sortOptions = [
-  { value: "name", label: "Name", icon: "mdi-sort-alphabetical-ascending" },
-  { value: "box", label: "Box", icon: "mdi-package-variant" },
-  { value: "location", label: "Lagerort", icon: "mdi-map-marker" },
-  { value: "added", label: "Neueste", icon: "mdi-clock-outline" },
-] as const;
+const sortOptions = computed(
+  () =>
+    [
+      {
+        value: "name",
+        label: t("sortName"),
+        icon: "mdi-sort-alphabetical-ascending",
+      },
+      { value: "box", label: "Box", icon: "mdi-package-variant" },
+      { value: "location", label: t("sortLocation"), icon: "mdi-map-marker" },
+      {
+        value: "added",
+        label: locale.value === "de" ? "Neueste" : "Newest",
+        icon: "mdi-clock-outline",
+      },
+    ] as const
+);
 
 function focus() {
   inputRef.value?.focus();
@@ -41,7 +54,7 @@ defineExpose({ focus });
         @input="
           emit('update:modelValue', ($event.target as HTMLInputElement).value)
         "
-        placeholder="Suchen... oder @Box @Produkt @Hersteller @Tag @Ort"
+        :placeholder="t('searchPlaceholder')"
         class="search-input"
       />
       <span v-if="loading" class="search-spinner">
@@ -72,7 +85,7 @@ defineExpose({ focus });
 
     <button class="btn-new" @click="emit('new-set')">
       <i class="mdi mdi-plus"></i>
-      <span>Neu</span>
+      <span>{{ locale === "de" ? "Neu" : "New" }}</span>
     </button>
   </div>
 </template>

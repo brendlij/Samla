@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "../i18n";
 
 type Product = {
   id: number;
@@ -31,7 +32,6 @@ const props = defineProps<{
   bag: BagInfo | null;
   tags: string[];
   products: Product[];
-  basePath: string;
 }>();
 
 const emit = defineEmits<{
@@ -40,29 +40,28 @@ const emit = defineEmits<{
   delete: [];
 }>();
 
-function toFileUrl(path: string) {
+const { t, locale } = useI18n();
+
+function toImageUrl(path: string) {
   if (!path) return "";
-  if (path.startsWith("file://")) return path;
-  const isAbs = /^[a-zA-Z]:[\\/]|^\\/.test(path);
-  const combined = isAbs
-    ? path
-    : props.basePath
-    ? props.basePath + "/" + path
-    : path;
-  return "file:///" + combined.replace(/\\/g, "/");
+  if (path.startsWith("data:")) return path;
+  return "/localfile/" + path.replace(/\\/g, "/");
 }
 
 const imageUrl = computed(() =>
-  props.photoPath ? toFileUrl(props.photoPath) : ""
+  props.photoPath ? toImageUrl(props.photoPath) : ""
 );
 
 const locationDisplay = computed(() => {
   if (!props.bag) return "-";
   const parts = [props.bag.locationName];
   if (props.bag.locationRoom) parts.push(props.bag.locationRoom);
-  if (props.bag.locationShelf) parts.push(`Regal ${props.bag.locationShelf}`);
+  const shelfLabel = locale.value === "de" ? "Regal" : "Shelf";
+  const compLabel = locale.value === "de" ? "Fach" : "Comp.";
+  if (props.bag.locationShelf)
+    parts.push(`${shelfLabel} ${props.bag.locationShelf}`);
   if (props.bag.locationCompartment)
-    parts.push(`Fach ${props.bag.locationCompartment}`);
+    parts.push(`${compLabel} ${props.bag.locationCompartment}`);
   return parts.join(" • ");
 });
 
@@ -85,7 +84,7 @@ const otherCount = computed(() => props.products.filter((p) => !p.kind).length);
       <div class="header-actions">
         <button class="btn-action" @click="emit('edit')">
           <i class="mdi mdi-pencil-outline"></i>
-          Bearbeiten
+          {{ t("edit") }}
         </button>
         <button class="btn-action danger" @click="emit('delete')">
           <i class="mdi mdi-delete-outline"></i>
@@ -126,7 +125,7 @@ const otherCount = computed(() => props.products.filter((p) => !p.kind).length);
             <i class="mdi mdi-map-marker-outline"></i>
           </div>
           <div class="card-content">
-            <span class="card-label">Lagerort</span>
+            <span class="card-label">{{ t("location") }}</span>
             <span class="card-value">{{ locationDisplay }}</span>
           </div>
         </div>
@@ -151,7 +150,7 @@ const otherCount = computed(() => props.products.filter((p) => !p.kind).length);
             <i class="mdi mdi-shopping-outline"></i>
           </div>
           <div class="card-content">
-            <span class="card-label">Beutel-Nr.</span>
+            <span class="card-label">{{ t("bagNumber") }}</span>
             <span class="card-value">{{ bag?.serialNo || "-" }}</span>
           </div>
         </div>
@@ -162,14 +161,16 @@ const otherCount = computed(() => props.products.filter((p) => !p.kind).length);
             <i class="mdi mdi-view-grid-outline"></i>
           </div>
           <div class="card-content">
-            <span class="card-label">Produkte</span>
+            <span class="card-label">{{ t("products") }}</span>
             <span class="card-value">
-              {{ products.length }} gesamt
+              {{ products.length }} {{ locale === "de" ? "gesamt" : "total" }}
               <span v-if="stempelCount" class="product-badge"
-                >{{ stempelCount }} Stempel</span
+                >{{ stempelCount }}
+                {{ locale === "de" ? "Stempel" : "Stamps" }}</span
               >
               <span v-if="stanzeCount" class="product-badge"
-                >{{ stanzeCount }} Stanzen</span
+                >{{ stanzeCount }}
+                {{ locale === "de" ? "Stanzen" : "Die cuts" }}</span
               >
             </span>
           </div>
@@ -178,7 +179,7 @@ const otherCount = computed(() => props.products.filter((p) => !p.kind).length);
 
       <!-- Tags -->
       <div v-if="tags.length" class="section">
-        <h2><i class="mdi mdi-tag-multiple-outline"></i> Tags</h2>
+        <h2><i class="mdi mdi-tag-multiple-outline"></i> {{ t("tags") }}</h2>
         <div class="tags-list">
           <span v-for="tag in tags" :key="tag" class="tag">{{ tag }}</span>
         </div>
@@ -187,7 +188,9 @@ const otherCount = computed(() => props.products.filter((p) => !p.kind).length);
       <!-- Products -->
       <div v-if="products.length" class="section">
         <h2>
-          <i class="mdi mdi-shape-outline"></i> Produkte ({{ products.length }})
+          <i class="mdi mdi-shape-outline"></i> {{ t("products") }} ({{
+            products.length
+          }})
         </h2>
         <div class="products-grid">
           <div

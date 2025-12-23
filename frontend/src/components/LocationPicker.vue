@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { useI18n } from "../i18n";
 
 type Location = {
   id: number;
@@ -45,6 +46,8 @@ const emit = defineEmits<{
   ];
   "delete-box": [id: number];
 }>();
+
+const { t, locale } = useI18n();
 
 const filteredBoxes = computed(() =>
   props.locationId
@@ -127,12 +130,11 @@ function saveLocation() {
 }
 
 function deleteLocation() {
-  if (
-    locationForm.value.id &&
-    confirm(
-      "Standort wirklich löschen? Alle Boxen und Sets werden auch gelöscht."
-    )
-  ) {
+  const msg =
+    locale.value === "de"
+      ? "Standort wirklich löschen? Alle Boxen und Sets werden auch gelöscht."
+      : "Really delete this location? All boxes and sets will also be deleted.";
+  if (locationForm.value.id && confirm(msg)) {
     emit("delete-location", locationForm.value.id);
     showLocationForm.value = false;
   }
@@ -155,10 +157,11 @@ function saveBox() {
 }
 
 function deleteBox() {
-  if (
-    boxForm.value.id &&
-    confirm("Box wirklich löschen? Alle Sets werden auch gelöscht.")
-  ) {
+  const msg =
+    locale.value === "de"
+      ? "Box wirklich löschen? Alle Sets werden auch gelöscht."
+      : "Really delete this box? All sets will also be deleted.";
+  if (boxForm.value.id && confirm(msg)) {
     emit("delete-box", boxForm.value.id);
     showBoxForm.value = false;
   }
@@ -167,8 +170,10 @@ function deleteBox() {
 function getLocationLabel(loc: Location) {
   const parts = [loc.friendlyName];
   if (loc.room) parts.push(loc.room);
-  if (loc.shelf) parts.push(`Regal ${loc.shelf}`);
-  if (loc.compartment) parts.push(`Fach ${loc.compartment}`);
+  const shelfLabel = locale.value === "de" ? "Regal" : "Shelf";
+  const compLabel = locale.value === "de" ? "Fach" : "Comp.";
+  if (loc.shelf) parts.push(`${shelfLabel} ${loc.shelf}`);
+  if (loc.compartment) parts.push(`${compLabel} ${loc.compartment}`);
   return parts.join(" · ");
 }
 </script>
@@ -177,7 +182,7 @@ function getLocationLabel(loc: Location) {
   <div class="location-picker">
     <!-- Standort Auswahl -->
     <div class="field">
-      <label>Standort</label>
+      <label>{{ t("location") }}</label>
       <div class="select-row">
         <select
           :value="locationId"
@@ -189,7 +194,9 @@ function getLocationLabel(loc: Location) {
           "
           class="select"
         >
-          <option :value="null">Standort wählen...</option>
+          <option :value="null">
+            {{ locale === "de" ? "Standort wählen..." : "Select location..." }}
+          </option>
           <option v-for="loc in locations" :key="loc.id" :value="loc.id">
             {{ getLocationLabel(loc) }}
           </option>
@@ -198,11 +205,15 @@ function getLocationLabel(loc: Location) {
           v-if="locationId"
           class="btn-icon"
           @click="editLocation"
-          title="Bearbeiten"
+          :title="t('edit')"
         >
           <i class="mdi mdi-pencil"></i>
         </button>
-        <button class="btn-icon" @click="newLocation" title="Neuer Standort">
+        <button
+          class="btn-icon"
+          @click="newLocation"
+          :title="locale === 'de' ? 'Neuer Standort' : 'New location'"
+        >
           <i class="mdi mdi-plus"></i>
         </button>
       </div>
@@ -210,7 +221,7 @@ function getLocationLabel(loc: Location) {
 
     <!-- Box Auswahl -->
     <div class="field">
-      <label>Box</label>
+      <label>{{ t("boxNumber") }}</label>
       <div class="select-row">
         <select
           :value="boxId"
@@ -223,7 +234,9 @@ function getLocationLabel(loc: Location) {
           :disabled="!locationId"
           class="select"
         >
-          <option :value="null">Box wählen...</option>
+          <option :value="null">
+            {{ locale === "de" ? "Box wählen..." : "Select box..." }}
+          </option>
           <option v-for="box in filteredBoxes" :key="box.id" :value="box.id">
             {{ box.code }}{{ box.name ? ` – ${box.name}` : "" }}
           </option>
@@ -232,7 +245,7 @@ function getLocationLabel(loc: Location) {
           v-if="boxId"
           class="btn-icon"
           @click="editBox"
-          title="Bearbeiten"
+          :title="t('edit')"
         >
           <i class="mdi mdi-pencil"></i>
         </button>
@@ -240,7 +253,7 @@ function getLocationLabel(loc: Location) {
           class="btn-icon"
           @click="newBox"
           :disabled="!locationId"
-          title="Neue Box"
+          :title="locale === 'de' ? 'Neue Box' : 'New box'"
         >
           <i class="mdi mdi-plus"></i>
         </button>
@@ -249,14 +262,14 @@ function getLocationLabel(loc: Location) {
 
     <!-- Beutel Nummer -->
     <div class="field">
-      <label>Beutel-Nr.</label>
+      <label>{{ t("bagNumber") }}</label>
       <input
         type="text"
         :value="bagSerial"
         @input="
           emit('update:bagSerial', ($event.target as HTMLInputElement).value)
         "
-        placeholder="z.B. 01, A1..."
+        :placeholder="locale === 'de' ? 'z.B. 01, A1...' : 'e.g. 01, A1...'"
         class="input"
       />
     </div>
@@ -269,55 +282,67 @@ function getLocationLabel(loc: Location) {
     >
       <div class="modal">
         <h3>
-          {{ locationForm.id ? "Standort bearbeiten" : "Neuer Standort" }}
+          {{
+            locationForm.id
+              ? locale === "de"
+                ? "Standort bearbeiten"
+                : "Edit Location"
+              : locale === "de"
+              ? "Neuer Standort"
+              : "New Location"
+          }}
         </h3>
 
         <div class="field">
-          <label>Name *</label>
+          <label>{{ locale === "de" ? "Name" : "Name" }} *</label>
           <input
             v-model="locationForm.name"
             type="text"
-            placeholder="z.B. Wohnzimmer"
+            :placeholder="
+              locale === 'de' ? 'z.B. Wohnzimmer' : 'e.g. Living Room'
+            "
             class="input"
           />
         </div>
 
         <div class="field-row">
           <div class="field">
-            <label>Raum</label>
+            <label>{{ t("room") }}</label>
             <input
               v-model="locationForm.room"
               type="text"
-              placeholder="z.B. Büro"
+              :placeholder="t('roomPlaceholder')"
               class="input"
             />
           </div>
           <div class="field">
-            <label>Regal</label>
+            <label>{{ t("shelf") }}</label>
             <input
               v-model="locationForm.shelf"
               type="text"
-              placeholder="z.B. A"
+              :placeholder="locale === 'de' ? 'z.B. A' : 'e.g. A'"
               class="input"
             />
           </div>
           <div class="field">
-            <label>Fach</label>
+            <label>{{ t("compartment") }}</label>
             <input
               v-model="locationForm.compartment"
               type="text"
-              placeholder="z.B. 1"
+              :placeholder="locale === 'de' ? 'z.B. 1' : 'e.g. 1'"
               class="input"
             />
           </div>
         </div>
 
         <div class="field">
-          <label>Notiz</label>
+          <label>{{ locale === "de" ? "Notiz" : "Note" }}</label>
           <input
             v-model="locationForm.note"
             type="text"
-            placeholder="Zusätzliche Info..."
+            :placeholder="
+              locale === 'de' ? 'Zusätzliche Info...' : 'Additional info...'
+            "
             class="input"
           />
         </div>
@@ -328,18 +353,18 @@ function getLocationLabel(loc: Location) {
             class="btn btn-danger"
             @click="deleteLocation"
           >
-            <i class="mdi mdi-delete"></i> Löschen
+            <i class="mdi mdi-delete"></i> {{ t("delete") }}
           </button>
           <div class="spacer"></div>
           <button class="btn btn-secondary" @click="showLocationForm = false">
-            Abbrechen
+            {{ t("cancel") }}
           </button>
           <button
             class="btn btn-primary"
             @click="saveLocation"
             :disabled="!locationForm.name.trim()"
           >
-            Speichern
+            {{ t("save") }}
           </button>
         </div>
       </div>
@@ -352,7 +377,17 @@ function getLocationLabel(loc: Location) {
       @click.self="showBoxForm = false"
     >
       <div class="modal">
-        <h3>{{ boxForm.id ? "Box bearbeiten" : "Neue Box" }}</h3>
+        <h3>
+          {{
+            boxForm.id
+              ? locale === "de"
+                ? "Box bearbeiten"
+                : "Edit Box"
+              : locale === "de"
+              ? "Neue Box"
+              : "New Box"
+          }}
+        </h3>
 
         <div class="field-row">
           <div class="field">
@@ -360,16 +395,18 @@ function getLocationLabel(loc: Location) {
             <input
               v-model="boxForm.code"
               type="text"
-              placeholder="z.B. A, B, 1..."
+              :placeholder="
+                locale === 'de' ? 'z.B. A, B, 1...' : 'e.g. A, B, 1...'
+              "
               class="input"
             />
           </div>
           <div class="field">
-            <label>Name</label>
+            <label>{{ locale === "de" ? "Name" : "Name" }}</label>
             <input
               v-model="boxForm.name"
               type="text"
-              placeholder="Optional..."
+              :placeholder="locale === 'de' ? 'Optional...' : 'Optional...'"
               class="input"
             />
           </div>
@@ -377,18 +414,18 @@ function getLocationLabel(loc: Location) {
 
         <div class="modal-actions">
           <button v-if="boxForm.id" class="btn btn-danger" @click="deleteBox">
-            <i class="mdi mdi-delete"></i> Löschen
+            <i class="mdi mdi-delete"></i> {{ t("delete") }}
           </button>
           <div class="spacer"></div>
           <button class="btn btn-secondary" @click="showBoxForm = false">
-            Abbrechen
+            {{ t("cancel") }}
           </button>
           <button
             class="btn btn-primary"
             @click="saveBox"
             :disabled="!boxForm.code.trim()"
           >
-            Speichern
+            {{ t("save") }}
           </button>
         </div>
       </div>

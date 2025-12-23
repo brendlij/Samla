@@ -9,6 +9,7 @@ import {
   watch,
 } from "vue";
 import Fuse from "fuse.js";
+import { useI18n, getSearchPrefixes } from "./i18n";
 import SearchBar from "./components/SearchBar.vue";
 import SetCard from "./components/SetCard.vue";
 import SetOverview from "./components/SetOverview.vue";
@@ -20,11 +21,14 @@ import ImageUpload from "./components/ImageUpload.vue";
 import CropModal from "./components/CropModal.vue";
 import ConfirmModal from "./components/ConfirmModal.vue";
 import MasterDataPanel from "./components/MasterDataPanel.vue";
+import SettingsPanel from "./components/SettingsPanel.vue";
 
 import {
   AddProduct,
   AttachImageFromFile,
   AttachImageFromURL,
+  AttachScannedImage,
+  ChooseImageFile,
   CreateBagWithSet,
   CreateBox,
   CreateLocation,
@@ -38,9 +42,13 @@ import {
   DeleteSet,
   DeleteTag,
   DeleteType,
+  ExportData,
   GetAppPaths,
+  GetImageAsBase64,
   GetNextBagSerial,
   GetSet,
+  GetStats,
+  ImportData,
   ListBoxes,
   ListLocations,
   ListManufacturers,
@@ -48,7 +56,10 @@ import {
   ListTagsFull,
   ListTypes,
   OpenAppFolder,
+  ReadFileAsBase64,
+  RemoveImage,
   SaveCroppedImage,
+  ScanImageToBase64,
   SearchSets,
   SetTags,
   UpdateBox,
@@ -154,6 +165,14 @@ const confirmModal = ref({
 // Master Data Panels
 const masterDataPanel = ref<"manufacturers" | "types" | "tags" | null>(null);
 
+// Settings & Menu
+const menuOpen = ref(false);
+const settingsOpen = ref(false);
+const stats = ref<Record<string, number> | null>(null);
+
+// i18n
+const { t, locale } = useI18n();
+
 const toast = ref({
   show: false,
   message: "",
@@ -181,6 +200,9 @@ const cropTask = reactive({
   origin: "file" as "file" | "url" | "scan",
   skipHandler: null as (() => Promise<void> | void) | null,
 });
+
+// Image data (base64)
+const currentImageData = ref("");
 
 // Computed
 const isEditing = computed(() => form.id !== null);
@@ -212,6 +234,23 @@ watch([searchQuery, sortBy], () => {
   if (searchTimer) clearTimeout(searchTimer);
   searchTimer = window.setTimeout(runSearch, 200);
 });
+
+// Watch photoPath changes to load image as base64
+watch(
+  () => form.photoPath,
+  async (newPath) => {
+    if (newPath) {
+      try {
+        currentImageData.value = await GetImageAsBase64(newPath);
+      } catch {
+        currentImageData.value = "";
+      }
+    } else {
+      currentImageData.value = "";
+    }
+  },
+  { immediate: true }
+);
 
 // Functions
 function showToast(message: string, type: "success" | "error" = "success") {
@@ -744,17 +783,6 @@ async function handleDeleteProduct(id: number) {
 }
 
 // Image handlers
-async function pickImageFile() {
-  const runtime = (window as any).runtime;
-  if (!runtime?.OpenFileDialog) return undefined;
-  const result = await runtime.OpenFileDialog({
-    Title: "Bild auswählen",
-    Filters: [{ DisplayName: "Bilder", Pattern: "*.png;*.jpg;*.jpeg;*.gif" }],
-  });
-  if (!result) return undefined;
-  return Array.isArray(result) ? result[0] : (result as string);
-}
-
 function toFileUrl(path: string) {
   if (!path) return "";
   if (path.startsWith("file://")) return path;
@@ -775,30 +803,86 @@ async function handleChooseFile() {
     if (!saved) return;
   }
 
-  const filePath = await pickImageFile();
-  if (!filePath) return;
+  try {
+    const filePath = await ChooseImageFile();
+    if (!filePath) return;
 
-  cropTask.src = toFileUrl(filePath);
-  cropTask.ext = extFromPath(filePath);
-  cropTask.origin = "file";
-  cropTask.skipHandler = async () => {
-    if (!form.id) return;
-    const rel = await AttachImageFromFile(form.id, filePath);
-    form.photoPath = rel;
-  };
-  cropVisible.value = true;
+    // Read file as base64 for crop preview
+    const base64Data = await ReadFileAsBase64(filePath);
+
+    cropTask.src = base64Data;
+    cropTask.ext = extFromPath(filePath);
+    cropTask.origin = "file";
+    cropTask.skipHandler = async () => {
+      if (!form.id) return;
+      const rel = await AttachImageFromFile(form.id, filePath);
+      form.photoPath = rel;
+      showToast(t("saveSuccess"));
+    };
+    cropVisible.value = true;
+  } catch (err: any) {
+    showToast(err?.message ?? String(err), "error");
+  }
 }
 
-async function handleFromUrl(url: string) {
+async function handleScan() {
   if (!form.id) {
     const saved = await saveSetFirst();
     if (!saved) return;
   }
 
   try {
-    const rel = await AttachImageFromURL(form.id!, url);
+    showToast(locale.value === "de" ? "Scanne..." : "Scanning...");
+    const result = await ScanImageToBase64();
+    if (!result || !result.base64Data) return;
+
+    cropTask.src = result.base64Data;
+    cropTask.ext = ".png";
+    cropTask.origin = "scan";
+    cropTask.skipHandler = async () => {
+      if (!form.id) return;
+      // Attach the scanned image to the set
+      await AttachScannedImage(form.id, result.relPath);
+      form.photoPath = result.relPath;
+      showToast(t("saveSuccess"));
+    };
+    cropVisible.value = true;
+  } catch (err: any) {
+    const msg = err?.message ?? String(err);
+    if (msg.includes("no scanner") || msg.includes("No scanner")) {
+      showToast(
+        locale.value === "de" ? "Kein Scanner gefunden" : "No scanner found",
+        "error"
+      );
+    } else {
+      showToast(msg, "error");
+    }
+  }
+}
+
+async function handleFromUrl(inputUrl: string) {
+  if (!form.id) {
+    const saved = await saveSetFirst();
+    if (!saved) return;
+  }
+
+  try {
+    // First download the image
+    const rel = await AttachImageFromURL(form.id!, inputUrl);
     form.photoPath = rel;
-    showToast("Bild geladen");
+
+    // Read as base64 for crop dialog
+    const fullPath = (appPaths.value?.baseDir || "") + "/" + rel;
+    const base64Data = await ReadFileAsBase64(fullPath.replace(/\//g, "\\"));
+
+    // Show crop dialog
+    cropTask.src = base64Data;
+    cropTask.ext = extFromPath(rel);
+    cropTask.origin = "url";
+    cropTask.skipHandler = null; // Image already saved
+    cropVisible.value = true;
+
+    showToast(locale.value === "de" ? "Bild geladen" : "Image loaded");
   } catch (err: any) {
     showToast(err?.message ?? String(err), "error");
   }
@@ -816,6 +900,18 @@ async function saveSetFirst(): Promise<boolean> {
   }
   await saveSet();
   return form.id !== null;
+}
+
+async function handleRemoveImage() {
+  if (!form.id || !form.photoPath) return;
+
+  try {
+    await RemoveImage(form.id);
+    form.photoPath = "";
+    showToast(locale.value === "de" ? "Bild entfernt" : "Image removed");
+  } catch (err: any) {
+    showToast(err?.message ?? String(err), "error");
+  }
 }
 
 async function handleCropConfirm(dataUrl: string) {
@@ -840,6 +936,58 @@ async function handleCropSkip() {
   if (cropTask.skipHandler) {
     await cropTask.skipHandler();
   }
+}
+
+// Settings & Menu handlers
+function toggleMenu() {
+  menuOpen.value = !menuOpen.value;
+}
+
+function closeMenu() {
+  menuOpen.value = false;
+}
+
+async function openSettings() {
+  closeMenu();
+  try {
+    stats.value = await GetStats();
+  } catch {
+    stats.value = null;
+  }
+  settingsOpen.value = true;
+}
+
+async function handleExport() {
+  try {
+    const path = await ExportData();
+    if (path) {
+      showToast(t("exportSuccess"));
+    }
+  } catch (err: any) {
+    showToast(err?.message ?? String(err), "error");
+  }
+}
+
+async function handleImport() {
+  confirmModal.value = {
+    visible: true,
+    message: t("confirmImportMessage"),
+    danger: true,
+    onConfirm: async () => {
+      confirmModal.value.visible = false;
+      try {
+        const path = await ImportData();
+        if (path) {
+          showToast(t("importSuccess"));
+          await loadInitial();
+          await loadAllSets();
+          await runSearch();
+        }
+      } catch (err: any) {
+        showToast(err?.message ?? String(err), "error");
+      }
+    },
+  };
 }
 
 // Keyboard shortcuts
@@ -875,7 +1023,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" @click="closeMenu">
     <!-- Header -->
     <header class="header">
       <div class="header-brand">
@@ -886,32 +1034,76 @@ onBeforeUnmount(() => {
         <button
           class="header-btn"
           @click="masterDataPanel = 'manufacturers'"
-          title="Hersteller verwalten"
+          title="Manufacturers"
         >
           <i class="mdi mdi-factory"></i>
         </button>
         <button
           class="header-btn"
           @click="masterDataPanel = 'types'"
-          title="Typen verwalten"
+          title="Types"
         >
           <i class="mdi mdi-shape-outline"></i>
         </button>
         <button
           class="header-btn"
           @click="masterDataPanel = 'tags'"
-          title="Tags verwalten"
+          title="Tags"
         >
           <i class="mdi mdi-tag-outline"></i>
         </button>
         <div class="header-divider"></div>
-        <button
-          class="header-btn"
-          @click="OpenAppFolder"
-          title="Datenordner öffnen"
-        >
-          <i class="mdi mdi-folder-open-outline"></i>
-        </button>
+
+        <!-- Hamburger Menu -->
+        <div class="menu-container">
+          <button
+            class="header-btn menu-btn"
+            @click.stop="toggleMenu"
+            title="Menu"
+          >
+            <i class="mdi mdi-menu"></i>
+          </button>
+
+          <Transition name="menu">
+            <div v-if="menuOpen" class="dropdown-menu" @click.stop>
+              <button class="menu-item" @click="openSettings">
+                <i class="mdi mdi-cog"></i>
+                <span>{{ t("settings") }}</span>
+              </button>
+              <button
+                class="menu-item"
+                @click="
+                  OpenAppFolder();
+                  closeMenu();
+                "
+              >
+                <i class="mdi mdi-folder-open"></i>
+                <span>{{ t("openDataFolder") }}</span>
+              </button>
+              <div class="menu-divider"></div>
+              <button
+                class="menu-item"
+                @click="
+                  handleExport();
+                  closeMenu();
+                "
+              >
+                <i class="mdi mdi-export"></i>
+                <span>{{ t("exportData") }}</span>
+              </button>
+              <button
+                class="menu-item"
+                @click="
+                  handleImport();
+                  closeMenu();
+                "
+              >
+                <i class="mdi mdi-import"></i>
+                <span>{{ t("importData") }}</span>
+              </button>
+            </div>
+          </Transition>
+        </div>
       </div>
     </header>
 
@@ -962,7 +1154,6 @@ onBeforeUnmount(() => {
       :bag="currentBagInfo"
       :tags="form.tags"
       :products="form.products"
-      :base-path="appPaths?.baseDir || ''"
       @edit="openEditFromOverview"
       @back="backFromOverview"
       @delete="requestDeleteFromOverview"
@@ -973,16 +1164,24 @@ onBeforeUnmount(() => {
       <div class="detail-header">
         <button class="btn-back" @click="backToList">
           <i class="mdi mdi-arrow-left"></i>
-          Zurück
+          {{ t("back") }}
         </button>
-        <h1>{{ isEditing ? "Set bearbeiten" : "Neues Set" }}</h1>
+        <h1>
+          {{
+            isEditing
+              ? locale === "de"
+                ? "Set bearbeiten"
+                : "Edit Set"
+              : t("newSet")
+          }}
+        </h1>
         <div class="detail-actions">
           <button v-if="isEditing" class="btn-delete" @click="requestDeleteSet">
             <i class="mdi mdi-delete-outline"></i>
           </button>
           <button class="btn-save" @click="saveSet">
             <i class="mdi mdi-check"></i>
-            Speichern
+            {{ t("save") }}
           </button>
         </div>
       </div>
@@ -991,22 +1190,27 @@ onBeforeUnmount(() => {
         <div class="detail-main">
           <!-- Name & Info -->
           <section class="section">
-            <h2><i class="mdi mdi-information-outline"></i> Grunddaten</h2>
+            <h2>
+              <i class="mdi mdi-information-outline"></i>
+              {{ locale === "de" ? "Grunddaten" : "Basic Info" }}
+            </h2>
             <div class="field">
-              <label>Name *</label>
+              <label>{{ t("setName") }} *</label>
               <input
                 v-model="form.name"
                 type="text"
-                placeholder="Set-Name..."
+                :placeholder="t('setNamePlaceholder')"
                 class="input large"
               />
             </div>
             <div class="field-row">
               <div class="field">
-                <label>Hersteller</label>
+                <label>{{ t("manufacturer") }}</label>
                 <div class="select-with-action">
                   <select v-model="form.manufacturer" class="input">
-                    <option value="">— Auswählen —</option>
+                    <option value="">
+                      — {{ locale === "de" ? "Auswählen" : "Select" }} —
+                    </option>
                     <option v-for="m in manufacturers" :key="m" :value="m">
                       {{ m }}
                     </option>
@@ -1014,7 +1218,11 @@ onBeforeUnmount(() => {
                   <button
                     class="btn-inline"
                     @click="masterDataPanel = 'manufacturers'"
-                    title="Hersteller verwalten"
+                    :title="
+                      locale === 'de'
+                        ? 'Hersteller verwalten'
+                        : 'Manage manufacturers'
+                    "
                     type="button"
                   >
                     <i class="mdi mdi-cog-outline"></i>
@@ -1022,18 +1230,22 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div class="field">
-                <label>Typ</label>
+                <label>{{ t("type") }}</label>
                 <div class="select-with-action">
                   <select v-model="form.type" class="input">
-                    <option value="">— Auswählen —</option>
-                    <option v-for="t in types" :key="t" :value="t">
-                      {{ t }}
+                    <option value="">
+                      — {{ locale === "de" ? "Auswählen" : "Select" }} —
+                    </option>
+                    <option v-for="tp in types" :key="tp" :value="tp">
+                      {{ tp }}
                     </option>
                   </select>
                   <button
                     class="btn-inline"
                     @click="masterDataPanel = 'types'"
-                    title="Typen verwalten"
+                    :title="
+                      locale === 'de' ? 'Typen verwalten' : 'Manage types'
+                    "
                     type="button"
                   >
                     <i class="mdi mdi-cog-outline"></i>
@@ -1045,7 +1257,9 @@ onBeforeUnmount(() => {
 
           <!-- Location -->
           <section class="section">
-            <h2><i class="mdi mdi-map-marker-outline"></i> Lagerort</h2>
+            <h2>
+              <i class="mdi mdi-map-marker-outline"></i> {{ t("location") }}
+            </h2>
             <LocationPicker
               :locations="locations"
               :boxes="boxes"
@@ -1064,7 +1278,7 @@ onBeforeUnmount(() => {
 
           <!-- Tags -->
           <section class="section">
-            <h2><i class="mdi mdi-tag-outline"></i> Tags</h2>
+            <h2><i class="mdi mdi-tag-outline"></i> {{ t("tags") }}</h2>
             <TagInput
               :tags="form.tags"
               :suggestions="tagSuggestions"
@@ -1074,7 +1288,7 @@ onBeforeUnmount(() => {
 
           <!-- Products -->
           <section class="section">
-            <h2><i class="mdi mdi-shape-outline"></i> Produkte</h2>
+            <h2><i class="mdi mdi-shape-outline"></i> {{ t("products") }}</h2>
             <ProductList
               :products="form.products"
               :set-id="form.id"
@@ -1088,13 +1302,15 @@ onBeforeUnmount(() => {
         <div class="detail-side">
           <!-- Image -->
           <section class="section">
-            <h2><i class="mdi mdi-image-outline"></i> Bild</h2>
+            <h2><i class="mdi mdi-image-outline"></i> {{ t("photo") }}</h2>
             <ImageUpload
               :photo-path="form.photoPath"
+              :image-data="currentImageData"
               :set-id="form.id"
-              :base-path="appPaths?.baseDir || ''"
               @choose-file="handleChooseFile"
               @from-url="handleFromUrl"
+              @scan="handleScan"
+              @remove="handleRemoveImage"
             />
           </section>
         </div>
@@ -1122,7 +1338,7 @@ onBeforeUnmount(() => {
     <!-- Master Data Panels -->
     <MasterDataPanel
       :visible="masterDataPanel === 'manufacturers'"
-      title="Hersteller"
+      :title="t('manufacturers')"
       icon="mdi-factory"
       :items="manufacturersList"
       @close="masterDataPanel = null"
@@ -1133,7 +1349,7 @@ onBeforeUnmount(() => {
 
     <MasterDataPanel
       :visible="masterDataPanel === 'types'"
-      title="Typen"
+      :title="t('types')"
       icon="mdi-shape-outline"
       :items="typesList"
       @close="masterDataPanel = null"
@@ -1144,13 +1360,24 @@ onBeforeUnmount(() => {
 
     <MasterDataPanel
       :visible="masterDataPanel === 'tags'"
-      title="Tags"
+      :title="t('tags')"
       icon="mdi-tag-outline"
       :items="tagsList"
       @close="masterDataPanel = null"
       @create="handleCreateTag"
       @update="handleUpdateTag"
       @delete="handleDeleteTag"
+    />
+
+    <!-- Settings Panel -->
+    <SettingsPanel
+      :visible="settingsOpen"
+      :paths="appPaths"
+      :stats="stats"
+      @close="settingsOpen = false"
+      @open-folder="OpenAppFolder"
+      @export="handleExport"
+      @import="handleImport"
     />
   </div>
 </template>
@@ -1239,6 +1466,65 @@ body {
 
 .header-btn i {
   font-size: 20px;
+}
+
+/* Menu Container */
+.menu-container {
+  position: relative;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  min-width: 200px;
+  padding: 8px;
+  z-index: 1000;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  text-align: left;
+}
+
+.menu-item:hover {
+  background: #f5f5f5;
+}
+
+.menu-item i {
+  font-size: 20px;
+  color: #666;
+}
+
+.menu-divider {
+  height: 1px;
+  background: #eee;
+  margin: 6px 0;
+}
+
+.menu-enter-active,
+.menu-leave-active {
+  transition: all 0.15s ease;
+}
+
+.menu-enter-from,
+.menu-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 /* Toast */

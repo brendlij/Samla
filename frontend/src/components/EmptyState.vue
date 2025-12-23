@@ -1,15 +1,21 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
+
 defineProps<{
   icon?: string;
   title?: string;
 }>();
+
+const { t, locale } = useI18n();
 </script>
 
 <template>
   <div class="empty-state">
     <i :class="['mdi', icon || 'mdi-inbox-outline']"></i>
-    <h3>{{ title || "Nichts gefunden" }}</h3>
-    <p><slot>Versuche eine andere Suche oder erstelle ein neues Set.</slot></p>
+    <h3>{{ title || t("noResults") }}</h3>
+    <p>
+      <slot>{{ t("noResultsDescription") }}</slot>
+    </p>
   </div>
 </template>
 

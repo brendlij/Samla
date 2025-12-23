@@ -8,6 +8,10 @@ export function AttachImageFromFile(arg1:number,arg2:string):Promise<string>;
 
 export function AttachImageFromURL(arg1:number,arg2:string):Promise<string>;
 
+export function AttachScannedImage(arg1:number,arg2:string):Promise<string>;
+
+export function ChooseImageFile():Promise<string>;
+
 export function CreateBagWithSet(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string):Promise<number>;
 
 export function CreateBox(arg1:number,arg2:string,arg3:string):Promise<number>;
@@ -40,11 +44,19 @@ export function DeleteTag(arg1:number):Promise<void>;
 
 export function DeleteType(arg1:number):Promise<void>;
 
+export function ExportData():Promise<string>;
+
 export function GetAppPaths():Promise<main.AppPaths>;
+
+export function GetImageAsBase64(arg1:string):Promise<string>;
 
 export function GetNextBagSerial(arg1:number):Promise<string>;
 
 export function GetSet(arg1:number):Promise<main.SetDetails>;
+
+export function GetStats():Promise<Record<string, number>>;
+
+export function ImportData():Promise<string>;
 
 export function ListBoxes(arg1:number):Promise<Array<main.Box>>;
 
@@ -62,9 +74,17 @@ export function ListTypes():Promise<Array<main.Type>>;
 
 export function OpenAppFolder():Promise<void>;
 
+export function ReadFileAsBase64(arg1:string):Promise<string>;
+
+export function RemoveImage(arg1:number):Promise<void>;
+
 export function ResolveImagePath(arg1:string):Promise<string>;
 
 export function SaveCroppedImage(arg1:number,arg2:string,arg3:string):Promise<string>;
+
+export function ScanImage():Promise<string>;
+
+export function ScanImageToBase64():Promise<main.ScanResult>;
 
 export function SearchSets(arg1:string,arg2:string):Promise<Array<main.SetSearchResult>>;
 

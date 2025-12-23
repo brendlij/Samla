@@ -100,6 +100,20 @@ export namespace main {
 	        this.kind = source["kind"];
 	    }
 	}
+	export class ScanResult {
+	    base64Data: string;
+	    relPath: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ScanResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.base64Data = source["base64Data"];
+	        this.relPath = source["relPath"];
+	    }
+	}
 	export class SetDetails {
 	    id: number;
 	    name: string;

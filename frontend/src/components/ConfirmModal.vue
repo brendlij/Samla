@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed } from "vue";
+import { useI18n } from "../i18n";
 
 const props = defineProps<{
   visible: boolean;
@@ -16,6 +17,8 @@ const emit = defineEmits<{
   cancel: [];
 }>();
 
+const { t, locale } = useI18n();
+
 const iconClass = computed(() => {
   if (props.icon) return props.icon;
   return props.danger ? "mdi-alert-circle-outline" : "mdi-help-circle-outline";
@@ -31,19 +34,19 @@ const iconClass = computed(() => {
             <i :class="['mdi', iconClass]"></i>
           </div>
           <h3 class="modal-title">
-            {{ title || (danger ? "Löschen bestätigen" : "Bestätigung") }}
+            {{ title || t("confirmDelete") }}
           </h3>
           <p class="modal-message">{{ message }}</p>
           <div class="modal-actions">
             <button class="btn btn-secondary" @click="emit('cancel')">
-              {{ cancelText || "Abbrechen" }}
+              {{ cancelText || t("cancel") }}
             </button>
             <button
               class="btn"
               :class="danger ? 'btn-danger' : 'btn-primary'"
               @click="emit('confirm')"
             >
-              {{ confirmText || (danger ? "Löschen" : "Bestätigen") }}
+              {{ confirmText || (danger ? t("delete") : t("confirm")) }}
             </button>
           </div>
         </div>

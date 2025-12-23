@@ -14,6 +14,14 @@ export function AttachImageFromURL(arg1, arg2) {
   return window['go']['main']['App']['AttachImageFromURL'](arg1, arg2);
 }
 
+export function AttachScannedImage(arg1, arg2) {
+  return window['go']['main']['App']['AttachScannedImage'](arg1, arg2);
+}
+
+export function ChooseImageFile() {
+  return window['go']['main']['App']['ChooseImageFile']();
+}
+
 export function CreateBagWithSet(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['CreateBagWithSet'](arg1, arg2, arg3, arg4, arg5);
 }
@@ -78,8 +86,16 @@ export function DeleteType(arg1) {
   return window['go']['main']['App']['DeleteType'](arg1);
 }
 
+export function ExportData() {
+  return window['go']['main']['App']['ExportData']();
+}
+
 export function GetAppPaths() {
   return window['go']['main']['App']['GetAppPaths']();
+}
+
+export function GetImageAsBase64(arg1) {
+  return window['go']['main']['App']['GetImageAsBase64'](arg1);
 }
 
 export function GetNextBagSerial(arg1) {
@@ -88,6 +104,14 @@ export function GetNextBagSerial(arg1) {
 
 export function GetSet(arg1) {
   return window['go']['main']['App']['GetSet'](arg1);
+}
+
+export function GetStats() {
+  return window['go']['main']['App']['GetStats']();
+}
+
+export function ImportData() {
+  return window['go']['main']['App']['ImportData']();
 }
 
 export function ListBoxes(arg1) {
@@ -122,12 +146,28 @@ export function OpenAppFolder() {
   return window['go']['main']['App']['OpenAppFolder']();
 }
 
+export function ReadFileAsBase64(arg1) {
+  return window['go']['main']['App']['ReadFileAsBase64'](arg1);
+}
+
+export function RemoveImage(arg1) {
+  return window['go']['main']['App']['RemoveImage'](arg1);
+}
+
 export function ResolveImagePath(arg1) {
   return window['go']['main']['App']['ResolveImagePath'](arg1);
 }
 
 export function SaveCroppedImage(arg1, arg2, arg3) {
   return window['go']['main']['App']['SaveCroppedImage'](arg1, arg2, arg3);
+}
+
+export function ScanImage() {
+  return window['go']['main']['App']['ScanImage']();
+}
+
+export function ScanImageToBase64() {
+  return window['go']['main']['App']['ScanImageToBase64']();
 }
 
 export function SearchSets(arg1, arg2) {

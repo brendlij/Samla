@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { useI18n } from "../i18n";
 
 type ProductItem = {
   id: number;
@@ -19,6 +20,7 @@ const emit = defineEmits<{
   delete: [id: number];
 }>();
 
+const { t, locale } = useI18n();
 const newName = ref("");
 const newKind = ref("");
 const editingId = ref<number | null>(null);
@@ -40,7 +42,8 @@ function saveEdit(product: ProductItem) {
 }
 
 function deleteProduct(id: number) {
-  if (confirm("Produkt entfernen?")) {
+  const msg = locale.value === "de" ? "Produkt entfernen?" : "Remove product?";
+  if (confirm(msg)) {
     emit("delete", id);
   }
 }
@@ -64,14 +67,18 @@ function getKindIcon(kind: string) {
       <input
         v-model="newName"
         type="text"
-        placeholder="Neues Produkt..."
+        :placeholder="locale === 'de' ? 'Neues Produkt...' : 'New product...'"
         class="input"
         @keyup.enter="addProduct"
       />
       <select v-model="newKind" class="select-kind">
-        <option value="">Typ</option>
-        <option value="stempel">Stempel</option>
-        <option value="stanze">Stanze</option>
+        <option value="">{{ t("type") }}</option>
+        <option value="stempel">
+          {{ locale === "de" ? "Stempel" : "Stamp" }}
+        </option>
+        <option value="stanze">
+          {{ locale === "de" ? "Stanze" : "Die cut" }}
+        </option>
       </select>
       <button class="btn-add" @click="addProduct" :disabled="!newName.trim()">
         <i class="mdi mdi-plus"></i>
@@ -96,8 +103,12 @@ function getKindIcon(kind: string) {
             @change="saveEdit(product)"
           >
             <option value="">–</option>
-            <option value="stempel">Stempel</option>
-            <option value="stanze">Stanze</option>
+            <option value="stempel">
+              {{ locale === "de" ? "Stempel" : "Stamp" }}
+            </option>
+            <option value="stanze">
+              {{ locale === "de" ? "Stanze" : "Die cut" }}
+            </option>
           </select>
         </template>
 
@@ -116,7 +127,7 @@ function getKindIcon(kind: string) {
 
     <div v-else class="empty">
       <i class="mdi mdi-shape-outline"></i>
-      <span>Noch keine Produkte</span>
+      <span>{{ t("noProducts") }}</span>
     </div>
   </div>
 </template>

@@ -1,29 +1,24 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useI18n } from "../i18n";
 
 const props = defineProps<{
   photoPath: string;
+  imageData: string; // Base64 image data
   setId: number | null;
-  basePath: string;
 }>();
 
 const emit = defineEmits<{
   "choose-file": [];
   "from-url": [url: string];
+  scan: [];
+  remove: [];
   crop: [src: string, ext: string];
 }>();
 
+const { t, locale } = useI18n();
 const urlInput = ref("");
 const showUrlInput = ref(false);
-
-function toFileUrl(path: string) {
-  if (!path) return "";
-  if (path.startsWith("file://")) return path;
-  const base = props.basePath;
-  const isAbs = /^[a-zA-Z]:[\\/]|^\\/.test(path);
-  const combined = isAbs ? path : base ? base + "/" + path : path;
-  return "file:///" + combined.replace(/\\/g, "/");
-}
 
 function submitUrl() {
   if (urlInput.value.trim()) {
@@ -37,28 +32,50 @@ function submitUrl() {
 <template>
   <div class="image-upload">
     <!-- Preview -->
-    <div class="preview" v-if="photoPath">
-      <img :src="toFileUrl(photoPath)" alt="Set Bild" />
+    <div class="preview" v-if="imageData">
+      <img :src="imageData" :alt="locale === 'de' ? 'Set Bild' : 'Set Image'" />
     </div>
     <div class="preview empty" v-else>
       <i class="mdi mdi-image-outline"></i>
-      <span v-if="!setId">Speichere das Set zuerst</span>
-      <span v-else>Kein Bild</span>
+      <span v-if="!setId">{{
+        locale === "de" ? "Speichere das Set zuerst" : "Save the set first"
+      }}</span>
+      <span v-else>{{ locale === "de" ? "Kein Bild" : "No image" }}</span>
     </div>
 
     <!-- Actions -->
     <div class="actions">
-      <button class="btn" @click="emit('choose-file')" :disabled="!setId">
+      <button
+        class="btn"
+        @click="emit('choose-file')"
+        :disabled="!setId"
+        :title="locale === 'de' ? 'Bild von Datei' : 'Image from file'"
+      >
         <i class="mdi mdi-folder-open"></i>
-        Datei wählen
+      </button>
+      <button
+        class="btn"
+        @click="emit('scan')"
+        :disabled="!setId"
+        :title="locale === 'de' ? 'Scannen' : 'Scan'"
+      >
+        <i class="mdi mdi-scanner"></i>
       </button>
       <button
         class="btn"
         @click="showUrlInput = !showUrlInput"
         :disabled="!setId"
+        :title="locale === 'de' ? 'Bild von URL' : 'Image from URL'"
       >
         <i class="mdi mdi-link"></i>
-        Von URL
+      </button>
+      <button
+        class="btn btn-remove"
+        @click="emit('remove')"
+        :disabled="!setId || !photoPath"
+        :title="locale === 'de' ? 'Bild entfernen' : 'Remove image'"
+      >
+        <i class="mdi mdi-delete-outline"></i>
       </button>
     </div>
 
@@ -67,7 +84,9 @@ function submitUrl() {
       <input
         v-model="urlInput"
         type="text"
-        placeholder="Bild-URL eingeben..."
+        :placeholder="
+          locale === 'de' ? 'Bild-URL eingeben...' : 'Enter image URL...'
+        "
         class="input"
         @keyup.enter="submitUrl"
       />
@@ -129,7 +148,7 @@ function submitUrl() {
 
 .btn {
   flex: 1;
-  padding: 12px 16px;
+  padding: 12px;
   font-size: 14px;
   font-weight: 500;
   border: 1px solid #ddd;
@@ -139,7 +158,6 @@ function submitUrl() {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
   transition: all 0.15s;
 }
 
@@ -154,7 +172,13 @@ function submitUrl() {
 }
 
 .btn i {
-  font-size: 18px;
+  font-size: 20px;
+}
+
+.btn-remove:hover:not(:disabled) {
+  border-color: #dc3545;
+  background: #fff5f5;
+  color: #dc3545;
 }
 
 .url-input {

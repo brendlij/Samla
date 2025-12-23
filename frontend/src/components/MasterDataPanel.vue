@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { ref, computed, onMounted } from "vue";
+import { useI18n } from "../i18n";
 import ConfirmModal from "./ConfirmModal.vue";
 
 type Item = { id: number; name: string };
@@ -18,6 +19,7 @@ const emit = defineEmits<{
   delete: [id: number];
 }>();
 
+const { t, locale } = useI18n();
 const search = ref("");
 const editingId = ref<number | null>(null);
 const editingName = ref("");
@@ -99,7 +101,11 @@ function handleKeydown(e: KeyboardEvent) {
                 v-model="newName"
                 type="text"
                 class="input"
-                :placeholder="`Neue/n ${title} hinzufügen...`"
+                :placeholder="
+                  locale === 'de'
+                    ? `Neue/n ${title} hinzufügen...`
+                    : `Add new ${title}...`
+                "
                 @keydown.enter="handleCreate"
               />
               <button
@@ -114,14 +120,18 @@ function handleKeydown(e: KeyboardEvent) {
             <!-- Search -->
             <div class="search-box" v-if="items.length > 5">
               <i class="mdi mdi-magnify"></i>
-              <input v-model="search" type="text" placeholder="Suchen..." />
+              <input
+                v-model="search"
+                type="text"
+                :placeholder="t('search') + '...'"
+              />
             </div>
 
             <!-- List -->
             <div class="item-list">
               <div v-if="!filteredItems.length" class="empty">
                 <i class="mdi mdi-folder-open-outline"></i>
-                <p>Keine Einträge</p>
+                <p>{{ locale === "de" ? "Keine Einträge" : "No entries" }}</p>
               </div>
 
               <div v-for="item in filteredItems" :key="item.id" class="item">
@@ -137,14 +147,14 @@ function handleKeydown(e: KeyboardEvent) {
                   <button
                     class="btn-icon success"
                     @click="saveEdit"
-                    title="Speichern"
+                    :title="t('save')"
                   >
                     <i class="mdi mdi-check"></i>
                   </button>
                   <button
                     class="btn-icon"
                     @click="cancelEdit"
-                    title="Abbrechen"
+                    :title="t('cancel')"
                   >
                     <i class="mdi mdi-close"></i>
                   </button>
@@ -154,14 +164,14 @@ function handleKeydown(e: KeyboardEvent) {
                   <button
                     class="btn-icon"
                     @click="startEdit(item)"
-                    title="Bearbeiten"
+                    :title="t('edit')"
                   >
                     <i class="mdi mdi-pencil-outline"></i>
                   </button>
                   <button
                     class="btn-icon danger"
                     @click="confirmDelete(item)"
-                    title="Löschen"
+                    :title="t('delete')"
                   >
                     <i class="mdi mdi-delete-outline"></i>
                   </button>
@@ -169,13 +179,19 @@ function handleKeydown(e: KeyboardEvent) {
               </div>
             </div>
 
-            <div class="item-count">{{ items.length }} Einträge</div>
+            <div class="item-count">
+              {{ items.length }} {{ locale === "de" ? "Einträge" : "entries" }}
+            </div>
           </div>
         </div>
 
         <ConfirmModal
           :visible="deleteModal.visible"
-          :message="`'${deleteModal.name}' wirklich löschen?`"
+          :message="
+            locale === 'de'
+              ? `'${deleteModal.name}' wirklich löschen?`
+              : `Really delete '${deleteModal.name}'?`
+          "
           :danger="true"
           @confirm="executeDelete"
           @cancel="deleteModal.visible = false"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   setId: number;
   setName: string;
   boxCode: string;
@@ -15,17 +15,18 @@ const emit = defineEmits<{
   click: [];
 }>();
 
-function toFileUrl(path: string) {
+function toImageUrl(path: string) {
   if (!path) return "";
-  if (path.startsWith("file://")) return path;
-  return "file:///" + path.replace(/\\/g, "/");
+  if (path.startsWith("data:")) return path;
+  // Use the local file handler
+  return "/localfile/" + path.replace(/\\/g, "/");
 }
 </script>
 
 <template>
   <div class="set-card" :class="{ selected }" @click="emit('click')">
     <div class="card-thumb">
-      <img v-if="thumbnailPath" :src="toFileUrl(thumbnailPath)" alt="" />
+      <img v-if="thumbnailPath" :src="toImageUrl(thumbnailPath)" alt="" />
       <i v-else class="mdi mdi-package-variant"></i>
     </div>
 
